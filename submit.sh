@@ -155,6 +155,23 @@ if [[ "$PREFER_HIGHMEM" == true ]]; then
     fi
 fi
 
+# Read cluster node restriction from analysis.yml (maintenance mode).
+NODE_RESTRICT_OPT=""
+if python3 -c "
+import yaml, sys
+cfg = yaml.safe_load(open('configs/analysis.yml'))
+enabled = str(cfg.get('cluster', {}).get('restrict_nodes', {}).get('enabled', False)).lower()
+sys.exit(0 if enabled == 'true' else 1)
+" 2>/dev/null; then
+    _partition=$(python3 -c "import yaml; cfg=yaml.safe_load(open('configs/analysis.yml')); print(cfg.get('cluster',{}).get('restrict_nodes',{}).get('partition','serial'))" 2>/dev/null)
+    _nodelist=$(python3 -c "import yaml; cfg=yaml.safe_load(open('configs/analysis.yml')); print(cfg.get('cluster',{}).get('restrict_nodes',{}).get('nodelist',''))" 2>/dev/null)
+    NODE_RESTRICT_OPT="--partition=${_partition:-serial}"
+    if [[ -n "$_nodelist" ]]; then
+        NODE_RESTRICT_OPT="$NODE_RESTRICT_OPT --nodelist=${_nodelist}"
+    fi
+    echo "Node restriction enabled: partition=${_partition:-serial}, nodelist=${_nodelist:-any}"
+fi
+
 CLUSTER_MEM_OPT="--mem=\$(( {resources.mem_mb} > ${SUBJOB_MIN_MEM_MB} ? {resources.mem_mb} : ${SUBJOB_MIN_MEM_MB} ))"
 if [[ "$PREFER_HIGHMEM" == true ]]; then
     CLUSTER_MEM_OPT="--mem=\$(( {resources.mem_mb} > ${HIGHMEM_MIN_MEM_MB} ? {resources.mem_mb} : ${HIGHMEM_MIN_MEM_MB} ))"
@@ -170,6 +187,7 @@ if [[ "$INDIVIDUAL_RULE" == true ]]; then
     snakemake \
         --cluster "sbatch \
             $PARTITION_OPT \
+            $NODE_RESTRICT_OPT \
             $CLUSTER_MEM_OPT \
             --time=$SUBJOB_TIME \
             --job-name=rule_{rule}_{wildcards} \
@@ -197,6 +215,7 @@ else
     # Full pipeline submission - original configuration
     snakemake \
         --cluster "sbatch \
+            $NODE_RESTRICT_OPT \
             $CLUSTER_MEM_OPT \
             --time=$SUBJOB_TIME \
             --job-name={rule}_{wildcards} \
