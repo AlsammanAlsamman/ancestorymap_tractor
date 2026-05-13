@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RFMix Ancestry Viewer</title>
+  <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --panel: #ffffff;
+      --border: #d7deea;
+      --text: #18212f;
+      --muted: #5f6b7a;
+      --accent: #0f5ea8;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Helvetica, Arial, sans-serif;
+      background: linear-gradient(180deg, #eef3fa 0%, #f8fbff 100%);
+      color: var(--text);
+    }
+    .container {
+      max-width: 1650px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .hero {
+      padding: 18px 20px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: linear-gradient(135deg, #0f5ea8 0%, #1d7da7 100%);
+      color: #fff;
+      margin-bottom: 18px;
+      box-shadow: 0 14px 32px rgba(15, 94, 168, 0.18);
+    }
+    .hero h1 {
+      margin: 0 0 6px;
+      font-size: 30px;
+    }
+    .hero p {
+      margin: 0;
+      max-width: 1000px;
+      line-height: 1.5;
+      color: rgba(255, 255, 255, 0.92);
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 18px rgba(18, 31, 45, 0.05);
+    }
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    input, select, button {
+      font: inherit;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 9px 11px;
+      background: #fff;
+      color: var(--text);
+    }
+    button {
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .button-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 12px;
+    }
+    .status {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 10px;
+    }
+    .metric {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      background: #fbfdff;
+    }
+    .metric.wide {
+      grid-column: 1 / -1;
+    }
+    .metric .label {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .metric .value {
+      margin-top: 6px;
+      font-size: 24px;
+      font-weight: 700;
+    }
+    .metric .value.long {
+      font-size: 14px;
+      line-height: 1.5;
+      font-weight: 600;
+      white-space: normal;
+      word-break: break-word;
+    }
+    .plot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 14px;
+    }
+    .plot-card {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 10px;
+      background: #fcfdff;
+    }
+    .plot-panel {
+      min-height: 380px;
+    }
+    .plot-card h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+    }
+    .svg-wrap {
+      overflow-x: auto;
+    }
+    #regionSvg {
+      width: 100%;
+      min-height: 420px;
+      display: block;
+      background: #fff;
+      border-radius: 10px;
+    }
+    .legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend-item .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 999px;
+      display: inline-block;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+    .table-wrap {
+      overflow: auto;
+      max-height: 420px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      background: #fff;
+    }
+    th, td {
+      border-bottom: 1px solid #edf1f6;
+      padding: 7px 8px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: #f5f8fd;
+      z-index: 1;
+    }
+    .empty {
+      color: var(--muted);
+      font-style: italic;
+    }
+    .note {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <h1>RFMix Ancestry Viewer</h1>
+      <p>Load analysis config, one or more RFMix Q files, one chromosome MSP file, the loci table, and the gene annotation file to visualize ancestry-colored loci, overlapping genes, per-sample ancestry mixtures, and summary ancestry contributions.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Inputs</h2>
+      <div class="controls-grid">
+        <label>analysis.yml<input id="analysisFile" type="file" accept=".yml,.yaml,.txt" /></label>
+        <label>RFMix Q file(s)<input id="qFiles" type="file" accept=".Q,.txt,.tsv" multiple /></label>
+        <label>RFMix MSP file<input id="mspFile" type="file" accept=".tsv,.txt,.msp" /></label>
+        <label>Gene annotation<input id="geneFile" type="file" accept=".loc,.txt,.tsv" /></label>
+        <label>Loci file<input id="lociFile" type="file" accept=".txt,.tsv" /></label>
+        <label>Chromosome<select id="chromosomeSelect"></select></label>
+        <label>Locus<select id="locusSelect"></select></label>
+        <label>Sort samples by ancestry<select id="sortAncestrySelect"></select></label>
+      </div>
+      <div class="button-row">
+        <button id="loadDefaultsBtn" type="button">Load Default Repository Files</button>
+        <button id="renderBtn" type="button">Render Plots</button>
+        <div id="status" class="status">Choose files or load defaults.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Summary</h2>
+      <div id="summaryGrid" class="summary-grid"></div>
+      <div id="ancestryLegend" class="legend"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Selected Locus View</h2>
+      <div class="svg-wrap">
+        <svg id="regionSvg" viewBox="0 0 1400 480" preserveAspectRatio="xMidYMin meet"></svg>
+      </div>
+      <p class="note">Pick a chromosome, then a locus on that chromosome. The top band shows all loci on the chromosome for context, and the main panel zooms into the selected locus with overlapping MSP ancestry segments and genes.</p>
+    </div>
+
+    <div class="plot-grid">
+      <div class="panel plot-card">
+        <h3>Genome-Wide Average Ancestry Contribution</h3>
+        <div id="globalContributionPlot" class="plot-panel"></div>
+      </div>
+      <div class="panel plot-card">
+        <h3>Selected-Locus Average Ancestry Contribution</h3>
+        <div id="locusContributionPlot" class="plot-panel"></div>
+      </div>
+      <div class="panel plot-card">
+        <h3>Sample-Level Heatmap</h3>
+        <div id="sampleHeatmapPlot" class="plot-panel"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Sample Mixture Plot</h2>
+      <div id="sampleStackedPlot" class="plot-panel"></div>
+      <p class="note">Samples are sorted by the selected ancestry contribution, averaged across all loaded Q files.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Locus Summary</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Locus</th>
+              <th>Chromosome</th>
+              <th>Start</th>
+              <th>End</th>
+              <th>Genes</th>
+              <th>Dominant ancestry</th>
+              <th>Ancestry proportions</th>
+            </tr>
+          </thead>
+          <tbody id="locusTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="./rfmix_ancestry_viewer.js"></script>
+</body>
+</html>

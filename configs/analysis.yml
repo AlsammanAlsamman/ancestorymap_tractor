@@ -1,0 +1,111 @@
+##############################################################################
+# MINIMAL ANALYSIS CONFIGURATION
+# Only USER-SPECIFIED values here. Everything else is hardcoded in rules.
+##############################################################################
+
+##############################################################################
+# PROJECT METADATA
+##############################################################################
+metadata:
+  project_name: "finemapping-Analysis-Hispanic"
+  version: "0.1.0"
+
+##############################################################################
+# COHORT INFORMATION (User specifies only the essentials)
+##############################################################################
+cohort:
+  name: "Hispanic"
+  plink_prefix: "Hispanic"              # Looks for inputs/Hispanic.{bed,bim,fam}
+  phenotype_format: "fam"               # Default: phenotype from .fam file
+  case_code: 2
+  control_code: 1
+
+##############################################################################
+# REFERENCE PANEL POPULATIONS
+##############################################################################
+reference:
+  populations: ["YRI", "PEL", "CEU"]
+
+##############################################################################
+# ANCESTRY MAPPINGS (User maps populations → labels → colors)
+##############################################################################
+ancestry:
+  population_to_label:
+    YRI: "AFR"
+    PEL: "AMR"
+    CEU: "EUR"
+  
+  label_to_color:
+    AFR: "#1f77b4"
+    AMR: "#ff7f0e"
+    EUR: "#2ca02c"
+  
+  reference_ancestry: "AMR"             # Dropped from model (collinearity)
+
+##############################################################################
+# INPUT DATA FILES (Filenames only - hardcoded locations in rules)
+##############################################################################
+data:
+  loci_file: "locimod_hispanic_chr_boundaries.txt"                           # Looks in input/
+  prs_file: "LAMR_PRS_using_MEX.txt"              # Looks in input/
+  covariates_file: "covariates_Hispanic_5PC.txt"  # Looks in inputs/
+  covariates_n_pcs: 5                             # Default format: PLINK eigenvec
+
+##############################################################################
+# ANALYSIS PARAMETERS (Only what varies between runs)
+##############################################################################
+
+# Bin analysis
+bin_size_bp: 250000
+max_genes_per_bin: 3
+
+# PRS correlation
+ancestry_bins: 10
+
+# Locus ancestry report thresholds
+cohort_maf_min: 0.01
+ancestry_maf_min: 0.01
+local_ancestry_min_logp: 1.0
+dosage_gwas_max_p: 5.0e-5
+min_supporting_snps: 1
+clustering_method: "ward"
+clustering_metric: "euclidean"
+
+# Admixture validation
+include_sex: true
+snp_pvalue_threshold: 0.01
+max_snps_per_ancestry: 50
+use_top_snp_per_locus: true
+cv_folds: 5
+random_state: 42
+genome_build: "GRCh37"
+
+gwas_validation:
+  AMR:
+    gwas_file: "inputs/Hisp.tsv"
+  EAS:
+    gwas_file: "inputs/Wang.tsv"
+  EUR:
+    gwas_file: "inputs/BJ.tsv"
+
+##############################################################################
+# CLUSTER SETTINGS (Temporary node restrictions during maintenance)
+# Set enabled: true to restrict all SLURM sub-jobs to the listed nodes/partition.
+# Set enabled: false to let SLURM schedule freely (normal operation).
+##############################################################################
+cluster:
+  restrict_nodes:
+    enabled: true
+    partition: "serial"
+    nodelist: "cb[020,030,040,050,060,070,090],cc[001-004,012-014],cd[001-004,011,013,021-022,024,031-034,041-044],cf[022-024,031-034,041-044,051-054,061-064,071-074,081-084]"
+
+##############################################################################
+# UNSUPERVISED ADMIXTURE ON EXTRACTED REGIONS (COHORT + 1000G)
+##############################################################################
+admixture_unsupervised:
+  min_k: 1
+  max_k: 8
+  cv_folds: 10
+  cohort_label: "Cohort"
+  cohort_color: "#7f7f7f"
+

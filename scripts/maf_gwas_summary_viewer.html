@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MAF + GWAS Locus Viewer</title>
+  <style>
+    :root {
+      --bg: #f7f8fb;
+      --panel: #ffffff;
+      --border: #d9dfeb;
+      --text: #1f2937;
+      --muted: #5b6472;
+      --danger: #d62728;
+      --warn: #f1b61b;
+    }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .container {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1, h2, h3 {
+      margin: 0 0 10px;
+    }
+    p {
+      margin: 6px 0;
+      line-height: 1.4;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    input, select, button {
+      font: inherit;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+    button {
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: end;
+      margin-bottom: 10px;
+    }
+    .status {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .plot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 14px;
+    }
+    .plot-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      background: #fcfdff;
+    }
+    .plot-title {
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      font-size: 12px;
+      margin-top: 8px;
+      color: var(--muted);
+    }
+    .legend-item::before {
+      content: "";
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      margin-right: 5px;
+      border-radius: 50%;
+      vertical-align: middle;
+      background: var(--dot-color, #4c78a8);
+    }
+    .note {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+    .summary-boxes {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+    }
+    .summary-box {
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fbfcfe;
+    }
+    .summary-box strong {
+      display: block;
+      font-size: 18px;
+      color: var(--text);
+      margin-top: 4px;
+    }
+    .table-wrap {
+      max-height: 420px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      background: white;
+    }
+    th, td {
+      border-bottom: 1px solid #edf0f6;
+      padding: 6px 8px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: #f5f7fb;
+      z-index: 1;
+    }
+    .empty {
+      color: var(--muted);
+      font-style: italic;
+      padding: 8px 0;
+    }
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="panel">
+      <h1>MAF + GWAS Locus Viewer</h1>
+      <p>Load <code>merged.maf_gwas_summary.tsv</code>, choose a locus, and inspect the overall GWAS panel, ancestry-specific Manhattan plots, OR correlations, and the filtered SNP table.</p>
+      <div class="button-row">
+        <label>
+          TSV file
+          <input id="fileInput" type="file" accept=".tsv,.txt" />
+        </label>
+        <button id="loadDefaultBtn" type="button">Load default results file</button>
+        <div id="status" class="status">No data loaded yet.</div>
+      </div>
+      <div class="controls-grid">
+        <label>
+          Locus
+          <select id="locusSelect"></select>
+        </label>
+        <label>
+          Gene
+          <select id="geneSelect">
+            <option value="All">All</option>
+          </select>
+        </label>
+        <label>
+          Min max -log10(local ancestry p)
+          <input id="minLocalPLog" type="number" min="0" step="0.1" value="0" />
+        </label>
+        <label>
+          Min max |log(OR local ancestry)|
+          <input id="minLocalORLog" type="number" min="0" step="0.01" value="0" />
+        </label>
+        <label>
+          Max SNPs in preview table
+          <input id="maxRows" type="number" min="10" step="10" value="200" />
+        </label>
+      </div>
+      <p class="note">Threshold lines in the Manhattan plots are fixed at <strong>5×10<sup>-8</sup></strong> (red) and <strong>5×10<sup>-5</sup></strong> (yellow).</p>
+    </div>
+
+    <div id="summaryPanel" class="panel"></div>
+
+    <div class="panel">
+      <h2>Manhattan plots</h2>
+      <div id="manhattanGrid" class="plot-grid"></div>
+      <div class="legend" id="manhattanLegend"></div>
+    </div>
+
+    <div class="panel">
+      <h2>OR correlation plots</h2>
+      <div id="correlationGrid" class="plot-grid"></div>
+      <p class="note">These compare ancestry-specific <code>OR_dosage_*</code> columns within the selected locus.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Filtered SNP table</h2>
+      <div id="tablePreview"></div>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_DATA_PATH = '../results_hispanic/maf_gwas_summary/merged.maf_gwas_summary.tsv';
+    const BASE_COLOR_PALETTE = ['#1f77b4', '#ff7f0e', '#2ca02c', '#e15759', '#76b7b2', '#59a14f'];
+    const OVERALL_GWAS_CANDIDATES = ['p_gwas', 'gwas_p', 'pvalue', 'p_value', 'P', 'PVAL', 'pval'];
+    let dataset = [];
+    let ancestries = [];
+    let localPairs = [];
+    let ancestryColors = {};
+    let overallGwasColumn = null;
+
+    function pairLabel(a, b) {
+      return [a, b].join('_');
+    }
+
+    function allAncestryPairs(labels) {
+      const pairs = [];
+      for (let i = 0; i < labels.length; i += 1) {
+        for (let j = i + 1; j < labels.length; j += 1) {
+          pairs.push(pairLabel(labels[i], labels[j]));
+        }
+      }
+      return pairs;
+    }
+
+    function detectSchema(rows) {
+      if (!rows.length) {
+        ancestries = [];
+        localPairs = [];
+        ancestryColors = {};
+        overallGwasColumn = null;
+        return;
+      }
+      const headers = Object.keys(rows[0]);
+      ancestries = headers
+        .filter((h) => h.startsWith('p_dosage_'))
+        .map((h) => h.replace('p_dosage_', ''));
+
+      localPairs = headers
+        .filter((h) => h.startsWith('p_local_ancestry_'))
+        .map((h) => h.replace('p_local_ancestry_', ''));
+
+      if (!localPairs.length && ancestries.length >= 2) {
+        localPairs = allAncestryPairs(ancestries);
+      }
+
+      ancestryColors = {};
+      ancestries.forEach((anc, idx) => {
+        ancestryColors[anc] = BASE_COLOR_PALETTE[idx % BASE_COLOR_PALETTE.length];
+      });
+
+      overallGwasColumn = OVERALL_GWAS_CANDIDATES.find((column) => headers.includes(column)) || null;
+    }
+
+    function safeNumber(value) {
+      const num = Number(value);
+      return Number.isFinite(num) ? num : NaN;
+    }
+
+    function negLog10(value) {
+      const num = safeNumber(value);
+      if (!Number.isFinite(num) || num <= 0) return NaN;
+      return -Math.log10(num);
+    }
+
+    function absLogOR(value) {
+      const num = safeNumber(value);
+      if (!Number.isFinite(num) || num <= 0) return NaN;
+      return Math.abs(Math.log(num));
+    }
+
+    function formatNumber(value, digits = 4) {
+      const num = safeNumber(value);
+      return Number.isFinite(num) ? num.toFixed(digits) : '';
+    }
+
+    function uniqueNonEmpty(values) {
+      return [...new Set(values.map((value) => String(value ?? '').trim()).filter(Boolean))];
+    }
+
+    function getSelectedLocusRows() {
+      const locus = document.getElementById('locusSelect').value;
+      return dataset.filter((row) => !locus || row.locus_name === locus);
+    }
+
+    function getOverallGwasPValue(row) {
+      if (overallGwasColumn) {
+        return safeNumber(row[overallGwasColumn]);
+      }
+      const ancestryPValues = ancestries
+        .map((anc) => safeNumber(row[`p_dosage_${anc}`]))
+        .filter((value) => Number.isFinite(value) && value > 0);
+      if (!ancestryPValues.length) {
+        return NaN;
+      }
+      return Math.min(...ancestryPValues);
+    }
+
+    function formatCellValue(column, value) {
+      if (value === undefined || value === null || value === '') return '';
+      const num = safeNumber(value);
+      if (!Number.isFinite(num)) return String(value);
+
+      if (column.startsWith('OR_')) {
+        return num.toFixed(2);
+      }
+      if (column.startsWith('p_')) {
+        return num.toExponential(2);
+      }
+      if (column === 'cohort_maf' || column.endsWith('_maf')) {
+        return num.toFixed(3);
+      }
+      return String(value);
+    }
+
+    function escapeHtml(text) {
+      return String(text ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
+    }
+
+    function parseTSV(text) {
+      const lines = text.trim().split(/\r?\n/).filter(Boolean);
+      if (!lines.length) return [];
+      const headers = lines[0].split('\t');
+      return lines.slice(1).map((line) => {
+        const values = line.split('\t');
+        const row = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] ?? '';
+        });
+        return row;
+      });
+    }
+
+    function updateStatus(message) {
+      document.getElementById('status').textContent = message;
+    }
+
+    function loadData(text, sourceLabel) {
+      dataset = parseTSV(text);
+      if (!dataset.length) {
+        updateStatus('No rows found in the selected file.');
+        renderAll();
+        return;
+      }
+      detectSchema(dataset);
+      populateLocusSelect();
+      populateGeneSelect();
+      updateStatus(`Loaded ${dataset.length.toLocaleString()} rows from ${sourceLabel}.`);
+      renderAll();
+    }
+
+    async function loadDefaultFile() {
+      try {
+        updateStatus(`Loading ${DEFAULT_DATA_PATH} ...`);
+        const response = await fetch(DEFAULT_DATA_PATH);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const text = await response.text();
+        loadData(text, DEFAULT_DATA_PATH);
+      } catch (error) {
+        updateStatus(`Could not load default file automatically. Use the file picker instead. (${error.message})`);
+      }
+    }
+
+    function populateLocusSelect() {
+      const select = document.getElementById('locusSelect');
+      const loci = [...new Set(dataset.map((row) => row.locus_name).filter(Boolean))].sort();
+      const current = select.value;
+      select.innerHTML = loci.map((locus) => `<option value="${escapeHtml(locus)}">${escapeHtml(locus)}</option>`).join('');
+      if (loci.includes(current)) {
+        select.value = current;
+      }
+    }
+
+    function populateGeneSelect() {
+      const select = document.getElementById('geneSelect');
+      const genes = [...new Set(dataset.map((row) => row.gene).filter(Boolean))].sort();
+      const current = select.value || 'All';
+      select.innerHTML = ['All', ...genes].map((gene) => `<option value="${escapeHtml(gene)}">${escapeHtml(gene)}</option>`).join('');
+      select.value = ['All', ...genes].includes(current) ? current : 'All';
+    }
+
+    function getFilteredRows() {
+      const locus = document.getElementById('locusSelect').value;
+      const gene = document.getElementById('geneSelect').value;
+      const minLocalPLog = safeNumber(document.getElementById('minLocalPLog').value) || 0;
+      const minLocalORLog = safeNumber(document.getElementById('minLocalORLog').value) || 0;
+
+      return dataset.filter((row) => {
+        if (locus && row.locus_name !== locus) return false;
+        if (gene && gene !== 'All' && row.gene !== gene) return false;
+
+        const localPScore = Math.max(...localPairs.map((pair) => negLog10(row[`p_local_ancestry_${pair}`]) || 0), 0);
+        const localORScore = Math.max(...localPairs.map((pair) => absLogOR(row[`OR_local_ancestry_${pair}`]) || 0), 0);
+
+        return localPScore >= minLocalPLog && localORScore >= minLocalORLog;
+      });
+    }
+
+    function renderAll() {
+      renderSummary();
+      const rows = getFilteredRows();
+      renderManhattanGrid(rows);
+      renderCorrelationGrid(rows);
+      renderTable(rows);
+    }
+
+    function renderSummary() {
+      const rows = getFilteredRows();
+      const locusRows = getSelectedLocusRows();
+      const locus = document.getElementById('locusSelect').value || '(none)';
+      const gene = document.getElementById('geneSelect').value || 'All';
+      const locusGenes = uniqueNonEmpty(locusRows.map((row) => row.gene));
+      const locusChromosomes = uniqueNonEmpty(locusRows.map((row) => row.chr));
+      const positions = locusRows.map((row) => safeNumber(row.pos)).filter((value) => Number.isFinite(value));
+      const regionText = positions.length
+        ? `chr${locusChromosomes.join(',')}:${Math.min(...positions).toLocaleString()}-${Math.max(...positions).toLocaleString()}`
+        : '';
+      const maxLocalP = rows.length ? Math.max(...rows.map((row) => Math.max(
+        ...localPairs.map((pair) => negLog10(row[`p_local_ancestry_${pair}`]) || 0),
+      ))) : 0;
+      const maxLocalOR = rows.length ? Math.max(...rows.map((row) => Math.max(
+        ...localPairs.map((pair) => absLogOR(row[`OR_local_ancestry_${pair}`]) || 0),
+      ))) : 0;
+      const bestOverallGwas = rows.length
+        ? Math.max(...rows.map((row) => negLog10(getOverallGwasPValue(row)) || 0))
+        : 0;
+      const overallLabel = overallGwasColumn ? `Overall GWAS column: ${overallGwasColumn}` : 'Overall GWAS uses best ancestry-specific dosage p-value as a proxy because no plain GWAS p-value column exists in this TSV.';
+
+      document.getElementById('summaryPanel').innerHTML = `
+        <h2>Current selection</h2>
+        <div class="summary-boxes">
+          <div class="summary-box">Locus<strong>${escapeHtml(locus)}</strong></div>
+          <div class="summary-box">Gene<strong>${escapeHtml(gene)}</strong></div>
+          <div class="summary-box">Region<strong>${escapeHtml(regionText || 'NA')}</strong></div>
+          <div class="summary-box">Filtered SNPs<strong>${rows.length.toLocaleString()}</strong></div>
+          <div class="summary-box">Locus genes<strong>${escapeHtml(String(locusGenes.length))}</strong></div>
+          <div class="summary-box">Best overall -log10(GWAS p)<strong>${formatNumber(bestOverallGwas, 2)}</strong></div>
+          <div class="summary-box">Max -log10(local ancestry p)<strong>${formatNumber(maxLocalP, 2)}</strong></div>
+          <div class="summary-box">Max |log(OR local ancestry)|<strong>${formatNumber(maxLocalOR, 3)}</strong></div>
+        </div>
+        <p><strong>Genes in locus:</strong> ${escapeHtml(locusGenes.join(', ') || 'None')}</p>
+        <p class="note">${escapeHtml(overallLabel)}</p>
+      `;
+    }
+
+    function renderManhattanGrid(rows) {
+      const container = document.getElementById('manhattanGrid');
+      const legend = document.getElementById('manhattanLegend');
+      if (!rows.length) {
+        container.innerHTML = '<div class="empty">No SNPs pass the current filters.</div>';
+        legend.innerHTML = '';
+        return;
+      }
+      const cards = [
+        {
+          title: overallGwasColumn ? `Overall GWAS Manhattan (${overallGwasColumn})` : 'Overall GWAS Manhattan (proxy from best ancestry dosage p-value)',
+          html: buildManhattanSvg(rows, {
+            title: overallGwasColumn ? `Overall GWAS (${overallGwasColumn})` : 'Overall GWAS proxy',
+            getPValue: (row) => getOverallGwasPValue(row),
+            color: '#111827',
+          }),
+        },
+        ...ancestries.map((ancestry) => ({
+          title: `${ancestry} dosage Manhattan`,
+          html: buildManhattanSvg(rows, {
+            title: `${ancestry} Manhattan`,
+            getPValue: (row) => safeNumber(row[`p_dosage_${ancestry}`]),
+            color: ancestryColors[ancestry] || '#4c78a8',
+          }),
+        })),
+      ];
+      container.innerHTML = cards.map((card) => `
+        <div class="plot-card">
+          <div class="plot-title">${card.title}</div>
+          ${card.html}
+        </div>
+      `).join('');
+      legend.innerHTML = [
+        `<span class="legend-item" style="--dot-color:#111827">${escapeHtml(overallGwasColumn ? `Overall GWAS (${overallGwasColumn})` : 'Overall GWAS proxy')}</span>`,
+        ...ancestries.map((ancestry) => `<span class="legend-item" style="--dot-color:${ancestryColors[ancestry]}">${escapeHtml(ancestry)} dosage p-values</span>`),
+      ]
+        .join('');
+    }
+
+    function buildManhattanSvg(rows, config) {
+      const width = 420;
+      const height = 230;
+      const margin = { top: 16, right: 14, bottom: 34, left: 44 };
+      const innerWidth = width - margin.left - margin.right;
+      const innerHeight = height - margin.top - margin.bottom;
+      const points = rows
+        .map((row) => ({
+          pos: safeNumber(row.pos),
+          y: negLog10(config.getPValue(row)),
+          rsid: row.rsid,
+        }))
+        .filter((point) => Number.isFinite(point.pos) && Number.isFinite(point.y));
+
+      if (!points.length) {
+        return '<div class="empty">No finite p-values for this plot in the selected locus.</div>';
+      }
+
+      const xMin = Math.min(...points.map((point) => point.pos));
+      const xMax = Math.max(...points.map((point) => point.pos));
+      const yThresholds = [5e-8, 5e-5].map((value) => -Math.log10(value));
+      const yMax = Math.max(8, ...points.map((point) => point.y), ...yThresholds) + 0.5;
+      const xScale = (value) => margin.left + ((value - xMin) / Math.max(xMax - xMin, 1)) * innerWidth;
+      const yScale = (value) => margin.top + innerHeight - (value / yMax) * innerHeight;
+      const color = config.color || '#4c78a8';
+
+      const thresholdLines = [
+        { value: 5e-8, color: '#d62728', label: '5e-8' },
+        { value: 5e-5, color: '#f1b61b', label: '5e-5' },
+      ].map((item) => {
+        const y = yScale(-Math.log10(item.value));
+        return `
+          <line x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}" stroke="${item.color}" stroke-width="1.5" stroke-dasharray="5,4" />
+          <text x="${width - margin.right - 4}" y="${y - 4}" text-anchor="end" fill="${item.color}" font-size="10">${item.label}</text>
+        `;
+      }).join('');
+
+      const pointSvg = points.map((point) => {
+        const x = xScale(point.pos);
+        const y = yScale(point.y);
+        const title = `${point.rsid}\nPOS: ${point.pos}\n-log10(p): ${point.y.toFixed(3)}`;
+        return `<circle cx="${x}" cy="${y}" r="3" fill="${color}" opacity="0.85"><title>${escapeHtml(title)}</title></circle>`;
+      }).join('');
+
+      return `
+        <svg viewBox="0 0 ${width} ${height}" aria-label="${escapeHtml(config.title)} Manhattan plot">
+          <rect x="0" y="0" width="${width}" height="${height}" fill="white" />
+          ${thresholdLines}
+          <line x1="${margin.left}" y1="${height - margin.bottom}" x2="${width - margin.right}" y2="${height - margin.bottom}" stroke="#4b5563" />
+          <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${height - margin.bottom}" stroke="#4b5563" />
+          <text x="${width / 2}" y="${height - 6}" text-anchor="middle" font-size="11" fill="#4b5563">Genomic position in locus</text>
+          <text x="12" y="${height / 2}" text-anchor="middle" font-size="11" fill="#4b5563" transform="rotate(-90 12 ${height / 2})">-log10(p)</text>
+          <text x="${margin.left}" y="${height - 18}" font-size="10" fill="#6b7280">${xMin}</text>
+          <text x="${width - margin.right}" y="${height - 18}" text-anchor="end" font-size="10" fill="#6b7280">${xMax}</text>
+          <text x="${margin.left - 6}" y="${margin.top + 8}" text-anchor="end" font-size="10" fill="#6b7280">${yMax.toFixed(1)}</text>
+          ${pointSvg}
+        </svg>
+      `;
+    }
+
+    function pearsonCorrelation(xs, ys) {
+      const n = xs.length;
+      if (n < 2) return NaN;
+      const meanX = xs.reduce((sum, value) => sum + value, 0) / n;
+      const meanY = ys.reduce((sum, value) => sum + value, 0) / n;
+      let num = 0;
+      let denX = 0;
+      let denY = 0;
+      for (let i = 0; i < n; i += 1) {
+        const dx = xs[i] - meanX;
+        const dy = ys[i] - meanY;
+        num += dx * dy;
+        denX += dx * dx;
+        denY += dy * dy;
+      }
+      if (denX === 0 || denY === 0) return NaN;
+      return num / Math.sqrt(denX * denY);
+    }
+
+    function renderCorrelationGrid(rows) {
+      const container = document.getElementById('correlationGrid');
+      if (!rows.length) {
+        container.innerHTML = '<div class="empty">No SNPs pass the current filters.</div>';
+        return;
+      }
+      const pairs = [
+        ...allAncestryPairs(ancestries).map((pair) => pair.split('_')),
+      ];
+      container.innerHTML = pairs.map(([left, right]) => `
+        <div class="plot-card">
+          <div class="plot-title">${left} vs ${right} OR correlation</div>
+          ${buildCorrelationSvg(rows, left, right)}
+        </div>
+      `).join('');
+    }
+
+    function buildCorrelationSvg(rows, left, right) {
+      const width = 360;
+      const height = 260;
+      const margin = { top: 16, right: 18, bottom: 40, left: 44 };
+      const innerWidth = width - margin.left - margin.right;
+      const innerHeight = height - margin.top - margin.bottom;
+      const xCol = `OR_dosage_${left}`;
+      const yCol = `OR_dosage_${right}`;
+
+      const points = rows
+        .map((row) => ({
+          x: safeNumber(row[xCol]),
+          y: safeNumber(row[yCol]),
+          rsid: row.rsid,
+        }))
+        .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y));
+
+      if (points.length < 2) {
+        return '<div class="empty">Not enough finite OR values to compute correlation.</div>';
+      }
+
+      const xs = points.map((point) => point.x);
+      const ys = points.map((point) => point.y);
+      const corr = pearsonCorrelation(xs, ys);
+      const minVal = Math.min(...xs, ...ys);
+      const maxVal = Math.max(...xs, ...ys);
+      const span = Math.max(maxVal - minVal, 0.2);
+      const axisMin = minVal - span * 0.08;
+      const axisMax = maxVal + span * 0.08;
+      const xScale = (value) => margin.left + ((value - axisMin) / (axisMax - axisMin)) * innerWidth;
+      const yScale = (value) => margin.top + innerHeight - ((value - axisMin) / (axisMax - axisMin)) * innerHeight;
+
+      const pointSvg = points.map((point) => {
+        const title = `${point.rsid}\n${left}: ${point.x.toFixed(4)}\n${right}: ${point.y.toFixed(4)}`;
+        return `<circle cx="${xScale(point.x)}" cy="${yScale(point.y)}" r="3.1" fill="#4c78a8" opacity="0.8"><title>${escapeHtml(title)}</title></circle>`;
+      }).join('');
+
+      return `
+        <svg viewBox="0 0 ${width} ${height}" aria-label="${left} vs ${right} correlation plot">
+          <rect x="0" y="0" width="${width}" height="${height}" fill="white" />
+          <line x1="${margin.left}" y1="${height - margin.bottom}" x2="${width - margin.right}" y2="${height - margin.bottom}" stroke="#4b5563" />
+          <line x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${height - margin.bottom}" stroke="#4b5563" />
+          <line x1="${xScale(axisMin)}" y1="${yScale(axisMin)}" x2="${xScale(axisMax)}" y2="${yScale(axisMax)}" stroke="#b3bccb" stroke-dasharray="5,4" />
+          <text x="${width / 2}" y="${height - 8}" text-anchor="middle" font-size="11" fill="#4b5563">OR_dosage_${left}</text>
+          <text x="12" y="${height / 2}" text-anchor="middle" font-size="11" fill="#4b5563" transform="rotate(-90 12 ${height / 2})">OR_dosage_${right}</text>
+          <text x="${width - margin.right}" y="${margin.top + 10}" text-anchor="end" font-size="11" fill="#111827">r = ${Number.isFinite(corr) ? corr.toFixed(3) : 'NA'}</text>
+          ${pointSvg}
+        </svg>
+      `;
+    }
+
+    function renderTable(rows) {
+      const container = document.getElementById('tablePreview');
+      if (!rows.length) {
+        container.innerHTML = '<div class="empty">No rows to display.</div>';
+        return;
+      }
+      const maxRows = Math.max(10, safeNumber(document.getElementById('maxRows').value) || 200);
+      const previewRows = rows.slice(0, maxRows);
+      const columns = [
+        'chr', 'pos', 'rsid', 'locus_name', 'gene', 'ref', 'alt',
+        'cohort_maf',
+        ...ancestries.map((anc) => `${anc}_maf`),
+        ...ancestries.map((anc) => `p_dosage_${anc}`),
+        ...ancestries.map((anc) => `OR_dosage_${anc}`),
+      ];
+
+      const header = `<tr>${columns.map((col) => `<th>${escapeHtml(col)}</th>`).join('')}</tr>`;
+      const body = previewRows.map((row) => `
+        <tr>
+          ${columns.map((col) => `<td>${escapeHtml(formatCellValue(col, row[col]))}</td>`).join('')}
+        </tr>
+      `).join('');
+
+      container.innerHTML = `
+        <div class="note">Showing ${previewRows.length} of ${rows.length.toLocaleString()} filtered SNPs.</div>
+        <div class="table-wrap">
+          <table>
+            <thead>${header}</thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    document.getElementById('fileInput').addEventListener('change', async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      loadData(text, file.name);
+    });
+
+    document.getElementById('loadDefaultBtn').addEventListener('click', loadDefaultFile);
+    document.getElementById('locusSelect').addEventListener('change', renderAll);
+    document.getElementById('geneSelect').addEventListener('change', renderAll);
+    document.getElementById('minLocalPLog').addEventListener('input', renderAll);
+    document.getElementById('minLocalORLog').addEventListener('input', renderAll);
+    document.getElementById('maxRows').addEventListener('input', renderAll);
+  </script>
+</body>
+</html>
