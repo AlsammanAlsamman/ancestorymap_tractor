@@ -102,6 +102,17 @@ if [ ${#TARGETS[@]} -eq 0 ] && [[ "$INDIVIDUAL_RULE" == false ]]; then
     TARGETS=("all")
 fi
 
+# Normalize common typo in the locus microscope target so the wrapper accepts
+# the user-facing command that has already been documented in the workflow.
+if [[ "$SNAKEFILE" == "rules/locus_haplotype_microscope.smk" ]]; then
+    for i in "${!TARGETS[@]}"; do
+        if [[ "${TARGETS[$i]}" == "locus_microscope_donesss" ]]; then
+            TARGETS[$i]="locus_microscope_done"
+            echo "Normalized target locus_microscope_donesss -> locus_microscope_done"
+        fi
+    done
+fi
+
 # Set up environment
 module load slurm
 module load python/3.7.0
@@ -166,10 +177,7 @@ sys.exit(0 if enabled == 'true' else 1)
     _partition=$(python3 -c "import yaml; cfg=yaml.safe_load(open('configs/analysis.yml')); print(cfg.get('cluster',{}).get('restrict_nodes',{}).get('partition','serial'))" 2>/dev/null)
     _nodelist=$(python3 -c "import yaml; cfg=yaml.safe_load(open('configs/analysis.yml')); print(cfg.get('cluster',{}).get('restrict_nodes',{}).get('nodelist',''))" 2>/dev/null)
     NODE_RESTRICT_OPT="--partition=${_partition:-serial}"
-    if [[ -n "$_nodelist" ]]; then
-        NODE_RESTRICT_OPT="$NODE_RESTRICT_OPT --nodelist=${_nodelist}"
-    fi
-    echo "Node restriction enabled: partition=${_partition:-serial}, nodelist=${_nodelist:-any}"
+    echo "Node restriction enabled: partition=${_partition:-serial} (drained nodes excluded automatically by SLURM)"
 fi
 
 CLUSTER_MEM_OPT="--mem=\$(( {resources.mem_mb} > ${SUBJOB_MIN_MEM_MB} ? {resources.mem_mb} : ${SUBJOB_MIN_MEM_MB} ))"

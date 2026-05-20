@@ -24,7 +24,7 @@ cohort:
 # REFERENCE PANEL POPULATIONS
 ##############################################################################
 reference:
-  populations: ["YRI", "PEL", "CEU"]
+  populations: ["YRI", "PEL", "CEU", "CHB"]
 
 ##############################################################################
 # ANCESTRY MAPPINGS (User maps populations → labels → colors)
@@ -34,11 +34,13 @@ ancestry:
     YRI: "AFR"
     PEL: "AMR"
     CEU: "EUR"
+    CHB: "EAS"
   
   label_to_color:
     AFR: "#1f77b4"
     AMR: "#ff7f0e"
     EUR: "#2ca02c"
+    EAS: "#d62728"
   
   reference_ancestry: "AMR"             # Dropped from model (collinearity)
 
@@ -88,24 +90,5 @@ gwas_validation:
   EUR:
     gwas_file: "inputs/BJ.tsv"
 
-##############################################################################
-# CLUSTER SETTINGS (Temporary node restrictions during maintenance)
-# Set enabled: true to restrict all SLURM sub-jobs to the listed nodes/partition.
-# Set enabled: false to let SLURM schedule freely (normal operation).
-##############################################################################
-cluster:
-  restrict_nodes:
-    enabled: true
-    partition: "serial"
-    nodelist: "cb[020,030,040,050,060,070,090],cc[001-004,012-014],cd[001-004,011,013,021-022,024,031-034,041-044],cf[022-024,031-034,041-044,051-054,061-064,071-074,081-084]"
 
-##############################################################################
-# UNSUPERVISED ADMIXTURE ON EXTRACTED REGIONS (COHORT + 1000G)
-##############################################################################
-admixture_unsupervised:
-  min_k: 1
-  max_k: 8
-  cv_folds: 10
-  cohort_label: "Cohort"
-  cohort_color: "#7f7f7f"
-
+validation_regions: input/validation_regions.txt

@@ -48,6 +48,9 @@
 # Step 7d: Add case/control ref+alt allele frequencies to each ancestry GWAS output table
 ./submit.sh --snakefile rules/ancestry_plink_gwas.smk ancestry_plink_gwas_with_freq_done --jobs 22
 
+# Step 7d-micro: Build per-locus tract/allele microscope plots and summary cards for validation_regions
+./submit.sh --snakefile rules/locus_haplotype_microscope.smk locus_microscope_done --subjob-time 08:00:00 --jobs 22
+
 # Step 7d2: Build per-ancestry EA/NEA standardized GWAS tables (full + P<5e-3), with EA case/control/total frequencies
 ./submit.sh --snakefile rules/ancestry_plink_gwas.smk ancestry_plink_gwas_effect_allele_tables_done  --jobs 22
 
@@ -76,3 +79,5 @@
 
 # Step 12: Quantify locus-level and ancestry-level dosage importance in the prediction model
 ./submit.sh --snakefile rules/report_admixture_importance.smk report_admixture_importance_done --jobs 1
+
+
