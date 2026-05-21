@@ -45,6 +45,17 @@ ancestry:
   reference_ancestry: "AMR"             # Dropped from model (collinearity)
 
 ##############################################################################
+# COLLAPSED TRACTOR GROUPS (2-way robust design)
+##############################################################################
+collapsed_tractor:
+  group1:
+    name: "AMR"
+    ancestries: ["AMR"]
+  group2:
+    name: "Non_AMR"
+    ancestries: ["EUR", "AFR", "EAS"]
+
+##############################################################################
 # INPUT DATA FILES (Filenames only - hardcoded locations in rules)
 ##############################################################################
 data:

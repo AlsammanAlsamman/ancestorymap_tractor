@@ -33,6 +33,22 @@
 # Step 7: Extract ancestry-specific tracts and dosage from phased VCF + RFMix MSP
 ./submit.sh --snakefile rules/extract_tracts.smk extract_tracts_done --jobs 22
 
+# Step 7a-collapsed: Collapse 4-way ancestry dosage/hapcount into two configured groups (collapsed_tractor.group1/group2)
+./submit.sh --snakefile rules/collapse_ancestry_dosage_counts.smk collapse_ancestry_dosage_counts_done --jobs 22
+
+# Step 8-collapsed: Run Tractor GWAS on collapsed two-group design and merge genome-wide outputs
+./submit.sh --snakefile rules/tractor_gwas_collapsed.smk tractor_gwas_collapsed_done --jobs 22
+
+
+
+
+
+
+
+
+
+
+
 # Step 7b: Export per-ancestry dosage matrices to separate PLINK pgen folders (AMR/EUR/EAS/AFR)
 ./submit.sh --snakefile rules/export_ancestry_dosage_plink.smk ancestry_dosage_plink_done --subjob-time 72:00:00 --jobs 22
 
